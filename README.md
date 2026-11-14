@@ -4,6 +4,8 @@ A day-view calendar drawn as a vintage radio tuner dial. Meetings are pieces of 
 
 It's a [Web Component](https://developer.mozilla.org/docs/Web/API/Web_components), so it works in plain HTML and in any framework. A small React wrapper is included.
 
+![radio-calendar in light and dark themes](docs/screenshot.png)
+
 **[Live demo](https://igorfil.github.io/radio-calendar/)**
 
 ## Install
