@@ -8,6 +8,12 @@ It's a [Web Component](https://developer.mozilla.org/docs/Web/API/Web_components
 
 **[Live demo](https://igorfil.github.io/radio-calendar/)**
 
+## Install
+
+```sh
+npm install radio-calendar
+```
+
 ## Use it in HTML
 
 ```html
