@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>radio-calendar · demo</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; padding: 40px 24px 64px;
+      background: #1b1b1a; color: #d9d6cf;
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main { max-width: 1800px; margin: 0 auto; display: grid; gap: 28px; }
+    h1 { margin: 0; font-weight: 600; font-size: 22px; letter-spacing: .02em; }
+    p { margin: 4px 0 0; color: #a8a49b; }
+    .controls { display: flex; flex-wrap: wrap; gap: 20px; align-items: end; }
+    label { display: grid; gap: 4px; font-size: 13px; color: #a8a49b; }
+    select, input { font: inherit; color: inherit; background: #2a2a28; border: 1px solid #44443f; border-radius: 4px; padding: 6px 8px; }
+    .log { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #a8a49b; min-height: 1.5em; }
+    pre { margin: 0; padding: 16px; background: #232321; border-radius: 4px; overflow: auto; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>radio-calendar</h1>
+      <p>A day view drawn as a vintage tuner dial. Drag the dial to peek at the rest of the day; click a meeting to fire <code>event-click</code>.</p>
+    </header>
+
+    <div class="controls">
+      <label>Hours
+        <select id="hourFormat"><option value="12">12-hour</option><option value="24">24-hour</option></select>
+      </label>
+      <label>Work starts <input id="workStart" type="time" value="09:00"></label>
+      <label>Work ends <input id="workEnd" type="time" value="17:00"></label>
+      <label>Pretend it's <input id="now" type="time" value=""></label>
+    </div>
+
+    <radio-calendar id="light" theme="light"></radio-calendar>
+    <radio-calendar id="dark" theme="dark"></radio-calendar>
+
+    <div class="log" id="log" aria-live="polite"></div>
+
+    <pre><code>&lt;script type="module"&gt;
+  import "radio-calendar";
+  const cal = document.querySelector("radio-calendar");
+  cal.events = [
+    { title: "Daily standup", start: "2026-11-13T09:15", end: "2026-11-13T09:45", category: "team" },
+  ];
+  cal.addEventListener("event-click", e =&gt; console.log(e.detail.event));
+&lt;/script&gt;
+&lt;radio-calendar theme="dark" work-start="09:00" work-end="17:00"&gt;&lt;/radio-calendar&gt;</code></pre>
+  </main>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Radio Calendar · glass variants</title>
+<style>
+  body { margin: 0; padding: 24px; background: #151514; color: #e8e8e2; font-family: system-ui, sans-serif; }
+  .grid { display: grid; gap: 28px; }
+  figure { margin: 0; }
+  figcaption { font-size: 14px; letter-spacing: .04em; margin-bottom: 8px; }
+  figcaption code { color: #9a9a92; margin-left: 8px; }
+  /* Frames stay at 1:1: scaling them made Chrome drop the SVG glass filter, so previews didn't match the real page. */
+  .frame { width: 1400px; height: 470px; overflow: hidden; border-radius: 4px; position: relative; }
+  iframe { position: absolute; left: 0; top: -60px; width: 1400px; height: 760px; border: 0; }
+</style>
+</head>
+<body>
+  <div class="grid" id="grid"></div>
+<script>
+const VARIANTS = [
+  ["engravedLight29", "29 · As it looked in the preview (now the main page)"],
+  ["engravedDarkPrev", "29 · With the full glass filter (what the main page showed)"],
+];
+const time = new URLSearchParams(location.search).get("time") || "11:10";
+const grid = document.getElementById("grid");
+VARIANTS.forEach(([key, label]) => {
+  grid.insertAdjacentHTML("beforeend", `
+    <figure>
+      <figcaption>${label}<code>index.html?glass=${key}</code></figcaption>
+      <div class="frame"><iframe src="index.html?glass=${key}&time=${time}&sweep=0" loading="eager"></iframe></div>
+    </figure>`);
+});
+</script>
+</body>
+</html>

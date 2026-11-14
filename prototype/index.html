@@ -1,0 +1,1025 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Radio Calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #2b2b29;
+    --ink-soft: #6b6b67;
+    --needle: #b8231a;
+    --amber: #ffb43a;
+    --brushed: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='300'><filter id='b'><feTurbulence type='fractalNoise' baseFrequency='0.002 0.9' numOctaves='3' seed='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 1.4 -0.45'/></filter><rect width='100%' height='100%' filter='url(%23b)'/></svg>");
+    --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .28 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    display: grid;
+    place-items: center;
+    padding: 40px 0;
+    background: #1b1b1a;
+    font-family: "Barlow Condensed", "Helvetica Neue", sans-serif;
+    color: var(--ink);
+  }
+  button { font: inherit; color: inherit; }
+
+  .faceplate {
+    width: min(1800px, 98vw);
+    padding: 16px 28px 16px;
+    border-radius: 4px;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,0) 10%, rgba(255,255,255,.22) 38%, rgba(255,255,255,0) 62%, rgba(255,255,255,.12) 85%, rgba(255,255,255,0)),
+      var(--brushed),
+      linear-gradient(180deg, #d4d4d0 0%, #bebeb9 55%, #c9c9c4 100%);
+    background-size: 100% 100%, 2400px 300px, 100% 100%;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.7),
+      inset 0 -1px 0 rgba(0,0,0,.25),
+      0 24px 50px rgba(0,0,0,.6);
+  }
+
+  .inscription {
+    position: absolute; top: 58px; z-index: 2; pointer-events: none; transform: translateX(calc(-100% - 14px));
+    font-size: 10px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .bezel {
+    padding: 6px;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #4a4a47, #2a2a28);
+    box-shadow: 0 1px 0 rgba(255,255,255,.6), inset 0 1px 2px rgba(0,0,0,.6);
+  }
+  .dial {
+    position: relative;
+    height: 136px;
+    /* No border-radius: a rounded overflow clip becomes a mask, which disables backdrop-filter on the glass. */
+    background:
+      radial-gradient(ellipse 60% 70% at 20% 0%, rgba(255,236,200,.35), transparent 70%),
+      radial-gradient(ellipse 60% 70% at 80% 0%, rgba(255,236,200,.35), transparent 70%),
+      linear-gradient(180deg, rgba(241,241,236,.55), rgba(214,214,207,.55)),
+      var(--brushed),
+      linear-gradient(180deg, #f1f1ec 0%, #e3e3dd 60%, #d6d6cf 100%);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 2400px 300px, 100% 100%;
+    box-shadow: inset 0 10px 18px -6px rgba(0,0,0,.45), inset 0 -4px 8px -4px rgba(0,0,0,.3);
+    overflow: hidden;
+  }
+  .dial::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 70;
+    background: linear-gradient(165deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.04) 35%, transparent 36%, transparent 100%);
+  }
+
+  .dial { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+  .dial.dragging { cursor: grabbing; }
+  .dial.dragging .glass { pointer-events: none; }
+  .track { position: absolute; top: 0; bottom: 0; left: 0; will-change: transform; }
+
+  .offhours { position: absolute; top: 0; bottom: 0; background: rgba(40,40,36,.14); }
+  .offhours.left { border-right: 1px solid rgba(40,40,36,.35); }
+  .offhours.right { border-left: 1px solid rgba(40,40,36,.35); }
+
+  .scale-line { position: absolute; left: 0; right: 0; top: 54px; height: 1px; background: #3a3a37; }
+  .tick { position: absolute; width: 1px; background: #3a3a37; bottom: calc(100% - 54px); }
+  .tick.h { height: 14px; }
+  .tick.m30 { height: 9px; }
+  .tick.m15 { height: 5px; }
+  .hour-label {
+    position: absolute; top: 18px; transform: translateX(-50%);
+    font-size: 19px; font-weight: 300; letter-spacing: .02em; color: var(--ink);
+  }
+  .ampm {
+    position: absolute; top: 58px; transform: translateX(-50%);
+    font-size: 10px; font-weight: 500; letter-spacing: .14em; color: var(--ink-soft);
+  }
+  .unit {
+    position: absolute; right: -24px; top: 26px;
+    font-size: 11px; font-weight: 500; letter-spacing: .14em; color: var(--ink-soft);
+  }
+  .is-off { opacity: .4; }
+
+  .needle {
+    position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px;
+    background: linear-gradient(90deg, #7d150f, var(--needle) 50%, #7d150f);
+    box-shadow: 1px 0 3px rgba(0,0,0,.25);
+    z-index: 1;
+    transition: left 1s linear;
+  }
+  .needle::after {
+    content: ""; position: absolute; left: -5px; bottom: 0; width: 12px; height: 10px;
+    background: linear-gradient(180deg, #3c3c39, #1f1f1d);
+    border-radius: 2px 2px 0 0;
+  }
+  .needle-cap {
+    position: absolute; top: 46px; width: 6px; height: 16px; margin-left: -3px;
+    background: var(--needle); border-radius: 1px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.3);
+    z-index: 50;
+    transition: left 1s linear;
+  }
+  .sweeping .needle, .sweeping .needle-cap { transition: none; }
+  .now-flag {
+    position: absolute; top: 2px; left: 1px;
+    padding: 1px 5px 1px 4px; border-radius: 0 2px 2px 0;
+    background: var(--needle); color: #fff4ec;
+    font-size: 10px; font-weight: 600; letter-spacing: .06em; line-height: 12px; white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+  .now-flag.flip { left: auto; right: 1px; border-radius: 2px 0 0 2px; padding: 1px 4px 1px 5px; }
+
+  .grid { position: absolute; top: 54px; bottom: 0; width: 1px; background: rgba(40,40,36,.13); }
+  .grid.half { background: rgba(40,40,36,.06); }
+
+  .glass {
+    position: absolute;
+    height: 46px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+    transition: transform .2s ease-out, opacity .5s ease-out;
+  }
+  /* Opacity, filter or mix-blend-mode on .glass or inside it would isolate it and blank out the lens, so avoid them there. */
+  .glass .lens { position: absolute; pointer-events: none; }
+  .glass svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; transition: filter .3s; }
+  .glass .cast { transform: translate(6px, 10px); transition: transform .2s ease-out; }
+  .glass:hover .cast, .glass:focus-visible .cast { transform: translate(9px, 16px); }
+  .glass .content {
+    display: flex; flex-direction: column; position: relative; overflow: hidden;
+    padding: 7px 10px 6px 11px;
+    color: var(--ink-glass);
+  }
+  .glass.past svg { filter: saturate(.6) brightness(1.05); }
+  .glass.past .content { opacity: .75; }
+  .glass:hover, .glass:focus-visible { z-index: 40 !important; transform: translateY(-3px); }
+  .glass:focus-visible { outline: none; }
+  .glass:focus-visible .content { text-decoration: underline; text-underline-offset: 3px; }
+  .etch {
+    display: block; overflow: hidden;
+    text-shadow: var(--etch-shadow);
+  }
+  .etch.title {
+    font-size: 14px; line-height: 1.1; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .etch.meta { font-size: 12px; font-weight: 500; letter-spacing: .05em; opacity: .85; margin-top: auto; white-space: nowrap; }
+  .glass.narrow .content { padding: 7px 0 0; text-align: center; }
+  .glass.ink-frost .etch { color: rgba(255,255,255,.62); text-shadow: 0 0 1px rgba(255,255,255,.6), 0 1px 0 rgba(0,0,0,.18); }
+  .glass.ink-dark .etch { color: color-mix(in srgb, var(--core) 45%, #000); text-shadow: 0 1px 0 rgba(255,255,255,.3); }
+  .glass.ink-pale .etch { color: color-mix(in srgb, var(--base) 30%, #fff); text-shadow: 0 0 6px color-mix(in srgb, var(--base) 60%, transparent), 0 1px 0 rgba(0,0,0,.3); }
+  .glass.ink-gold .etch { color: #e9c877; text-shadow: 0 1px 0 rgba(0,0,0,.45), 0 -1px 0 rgba(255,240,200,.25); }
+  .glass.ink-engraved .etch {
+    color: color-mix(in srgb, color-mix(in srgb, var(--core) 45%, #000) var(--ink-strength), transparent);
+    text-shadow: 0 1px 0 rgba(255,255,255,.38), 0 -1px 0 rgba(0,0,0,.2);
+  }
+  .glass.ink-carved .etch { color: rgba(0,0,0,.3); text-shadow: 0 1px 0 rgba(255,255,255,.4), 0 -1px 0 rgba(0,0,0,.25); }
+  .glass.with-pips .meta { display: none; }
+  .defs { position: absolute; width: 0; height: 0; }
+
+  .tag {
+    position: absolute; z-index: 60; pointer-events: none;
+    min-width: 190px; max-width: 260px;
+    padding: 9px 12px; border-radius: 3px;
+    background: rgba(30,30,28,.9);
+    color: #eeeee8; font-size: 14px; line-height: 1.4; letter-spacing: .03em;
+    box-shadow: 0 8px 20px rgba(0,0,0,.35);
+    opacity: 0; transform: translateY(3px);
+    transition: opacity .15s ease-out, transform .15s ease-out;
+  }
+  .tag.show { opacity: 1; transform: none; }
+  .tag b { font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+  .tag .muted { color: #aeaea6; }
+
+  .dial-msg {
+    pointer-events: none;
+    position: absolute; left: 0; right: 0; top: 58%; text-align: center;
+    font-size: 14px; font-weight: 500; letter-spacing: .3em; text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .stack { display: grid; gap: 40px; }
+
+  /* Dark: room lights off, only dim lamps behind the scale. */
+  .theme-dark { --ink: #e9dcc2; --ink-soft: #a89878; --needle: #ff3b2a; }
+  .theme-dark.faceplate {
+    background:
+      linear-gradient(90deg, rgba(255,255,255,0) 10%, rgba(255,255,255,.05) 38%, rgba(255,255,255,0) 62%, rgba(255,255,255,.03) 85%, rgba(255,255,255,0)),
+      var(--brushed),
+      linear-gradient(180deg, #2c2c2e 0%, #222224 55%, #262628 100%);
+    background-size: 100% 100%, 2400px 300px, 100% 100%;
+    background-blend-mode: normal, soft-light, normal;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.5), 0 24px 50px rgba(0,0,0,.8);
+  }
+  .theme-dark .inscription { text-shadow: 0 0 6px rgba(255,170,80,.4); }
+  .theme-dark .bezel { background: linear-gradient(180deg, #121213, #0a0a0b); box-shadow: 0 1px 0 rgba(255,255,255,.06), inset 0 1px 2px rgba(0,0,0,.8); }
+  .theme-dark .dial {
+    background:
+      radial-gradient(ellipse 3.5% 16% at 12.5% 0%, rgba(255,214,150,.5), transparent 70%),
+      radial-gradient(ellipse 3.5% 16% at 37.5% 0%, rgba(255,214,150,.5), transparent 70%),
+      radial-gradient(ellipse 3.5% 16% at 62.5% 0%, rgba(255,214,150,.5), transparent 70%),
+      radial-gradient(ellipse 3.5% 16% at 87.5% 0%, rgba(255,214,150,.5), transparent 70%),
+      radial-gradient(ellipse 14% 110% at 12.5% 0%, rgba(255,166,72,.26), transparent 70%),
+      radial-gradient(ellipse 14% 110% at 37.5% 0%, rgba(255,166,72,.26), transparent 70%),
+      radial-gradient(ellipse 14% 110% at 62.5% 0%, rgba(255,166,72,.26), transparent 70%),
+      radial-gradient(ellipse 14% 110% at 87.5% 0%, rgba(255,166,72,.26), transparent 70%),
+      linear-gradient(180deg, rgba(40,34,26,.6), rgba(10,9,8,.6)),
+      var(--brushed),
+      linear-gradient(180deg, #1b1916 0%, #11100e 70%, #0b0a09 100%);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 2400px 300px, 100% 100%;
+    background-blend-mode: normal, normal, normal, normal, normal, normal, normal, normal, normal, soft-light, normal;
+    box-shadow: inset 0 10px 18px -6px rgba(0,0,0,.8), inset 0 -4px 8px -4px rgba(0,0,0,.6);
+  }
+  .theme-dark .dial::after { background: linear-gradient(165deg, rgba(255,220,170,.05) 0%, rgba(255,220,170,.015) 35%, transparent 36%); }
+  .theme-dark .offhours { background: rgba(0,0,0,.38); }
+  .theme-dark .offhours.left { border-right-color: rgba(255,200,140,.12); }
+  .theme-dark .offhours.right { border-left-color: rgba(255,200,140,.12); }
+  .theme-dark .scale-line, .theme-dark .tick { background: #cdb991; box-shadow: 0 0 4px rgba(255,170,80,.35); }
+  .theme-dark .hour-label { text-shadow: 0 0 8px rgba(255,170,80,.45); }
+  .theme-dark .grid { background: rgba(255,214,160,.06); }
+  .theme-dark .grid.half { background: rgba(255,214,160,.03); }
+  .theme-dark .needle { box-shadow: 0 0 6px 1px rgba(255,60,40,.55); }
+  .theme-dark .needle-cap { box-shadow: 0 0 6px rgba(255,60,40,.7); }
+  .theme-dark .now-flag { box-shadow: 0 0 8px rgba(255,60,40,.55); }
+  .theme-dark .glass .glow-l { opacity: var(--glow-l, 0); }
+  .theme-dark .glass .glow-r { opacity: var(--glow-r, 0); }
+  .theme-dark .glass .glow-t { opacity: var(--glow-t, 0); }
+  .theme-dark .glass .halo-l { opacity: calc(var(--glow-l, 0) * .16); }
+  .theme-dark .glass .halo-r { opacity: calc(var(--glow-r, 0) * .16); }
+  .theme-dark .glass.ink-engraved .etch {
+    color: rgba(255,236,206,.78);
+    text-shadow: 0 0 6px rgba(255,170,80,.35), 0 -1px 0 rgba(0,0,0,.6);
+  }
+  .theme-dark .glass.past svg { filter: saturate(.6) brightness(.85); }
+  .theme-dark .dial-msg { color: #a89878; }
+</style>
+</head>
+<body>
+  <svg class="defs" aria-hidden="true" color-interpolation-filters="sRGB">
+    <filter id="frost" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="1.8" numOctaves="2" seed="3" result="fine"/>
+      <feTurbulence type="fractalNoise" baseFrequency=".022" numOctaves="2" seed="11" result="coarse"/>
+      <feColorMatrix in="fine" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.8 -.62" result="speck"/>
+      <feColorMatrix in="coarse" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 2.4 -.75" result="patch"/>
+      <feComposite in="speck" in2="patch" operator="arithmetic" k1=".9" k2=".3" k3="0" k4="0" result="pits"/>
+      <feComponentTransfer in="patch" result="haze"><feFuncA type="linear" slope=".28"/></feComponentTransfer>
+      <feMerge><feMergeNode in="haze"/><feMergeNode in="pits"/></feMerge>
+    </filter>
+    <filter id="b1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation=".7"/></filter>
+    <filter id="b2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2"/></filter>
+    <filter id="b4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="b6" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>
+    <filter id="b9" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter>
+  </svg>
+  <template id="calendarTemplate">
+    <main class="faceplate">
+      <svg class="defs js-lensDefs" aria-hidden="true"></svg>
+      <div class="bezel">
+        <section class="dial js-dial">
+          <div class="track js-track"></div>
+        </section>
+      </div>
+    </main>
+  </template>
+  <div class="stack" id="stack"></div>
+
+<script>
+const HOUR_START = 0, HOUR_END = 24, WORK_START = 9, WORK_END = 17;
+// The dial shows working hours plus an hour either side; the rest of the day is reached by dragging.
+const VIEW_FIRST_HOUR = WORK_START - 1, VIEW_LAST_HOUR = WORK_END + 1;
+const VIEW_PAD_MIN = 15;
+const VIEW_MIN = (VIEW_LAST_HOUR - VIEW_FIRST_HOUR) * 60 + VIEW_PAD_MIN * 2;
+const MAX_LANES = 3;
+const GLASS_TOP = 74;
+const SPAN = (HOUR_END - HOUR_START) * 60;
+
+const TODAY_MEETINGS = [
+  { title: "Daily standup",       start: "09:15", end: "09:45", type: "team",     who: "Platform team" },
+  { title: "Architecture review", start: "10:30", end: "11:30", type: "team",     who: "Leo, Priya, Mark" },
+  { title: "ACME QBR",            start: "10:45", end: "12:00", type: "external", who: "ACME Corp · 6 guests" },
+  { title: "Vendor call",         start: "11:00", end: "11:30", type: "external", who: "Northwind" },
+  { title: "Lunch with Sam",      start: "12:30", end: "13:15", type: "personal", who: "Sam" },
+  { title: "Quick sync",          start: "13:45", end: "14:00", type: "team",     who: "Priya" },
+  { title: "1:1 Ana",             start: "15:00", end: "15:30", type: "personal", who: "Ana" },
+  { title: "Customer onboarding", start: "15:15", end: "16:15", type: "external", who: "Globex · 3 guests" },
+  { title: "Sprint retro",        start: "16:30", end: "17:15", type: "team",     who: "Platform team" },
+];
+
+const RANDOM_TITLES = {
+  team: ["Planning", "Design crit", "Standup", "Backlog grooming", "Incident review", "Pairing"],
+  external: ["Partner sync", "Customer demo", "Discovery call", "Contract review", "Roadmap briefing"],
+  personal: ["1:1 Leo", "1:1 Priya", "Dentist", "Coffee chat", "Focus block"],
+};
+
+const toMin = hhmm => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+const fmt = min => {
+  const h = Math.floor(min / 60), m = min % 60;
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")}`;
+};
+const dur = mins => mins >= 60 ? `${Math.floor(mins / 60)}h${mins % 60 ? " " + (mins % 60) + "m" : ""}` : `${mins}m`;
+const pct = min => ((min - HOUR_START * 60) / SPAN) * 100;
+
+const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const sameDay = (a, b) => startOfDay(a).getTime() === startOfDay(b).getTime();
+
+const seeded = seed => {
+  let s = Math.floor(seed) % 2147483647 || 1;
+  return () => (s = (s * 16807) % 2147483647) / 2147483647;
+};
+
+function meetingsFor(day, today) {
+  if (sameDay(day, today)) return TODAY_MEETINGS.map(m => ({ ...m, s: toMin(m.start), e: toMin(m.end) }));
+  if (day.getDay() === 0 || day.getDay() === 6) return [];
+  const rnd = seeded(startOfDay(day).getTime() / 86400000);
+  const types = ["team", "external", "personal"];
+  return Array.from({ length: 3 + Math.floor(rnd() * 6) }, () => {
+    const type = types[Math.floor(rnd() * 3)];
+    const s = WORK_START * 60 + Math.floor(rnd() * 30) * 15;
+    const e = s + [15, 30, 30, 45, 60, 90][Math.floor(rnd() * 6)];
+    const list = RANDOM_TITLES[type];
+    return { title: list[Math.floor(rnd() * list.length)], type, s, e, who: "" };
+  });
+}
+
+function assignLanes(meetings) {
+  const laneEnds = [];
+  return [...meetings]
+    .sort((a, b) => a.s - b.s || b.e - a.e)
+    .map(m => {
+      const free = laneEnds.findIndex(end => end <= m.s);
+      const lane = free === -1 ? laneEnds.length : free;
+      laneEnds[lane] = m.e;
+      return { ...m, lane };
+    });
+}
+
+// Outside the dial's hours the needle would be off-screen, so fake a mid-afternoon time for the demo.
+const params = new URLSearchParams(location.search);
+const realNow = new Date();
+const simulated = params.get("time") ||
+  (realNow.getHours() < VIEW_FIRST_HOUR || realNow.getHours() >= VIEW_LAST_HOUR ? "14:37" : null);
+const simOffsetMs = simulated
+  ? (() => {
+      const d = new Date(realNow);
+      const [h, m] = simulated.split(":").map(Number);
+      d.setHours(h, m, 0, 0);
+      return d - realNow;
+    })()
+  : 0;
+const now = () => new Date(Date.now() + simOffsetMs);
+const nowMin = () => { const d = now(); return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60; };
+
+function make(tag, className, style = {}) {
+  const node = document.createElement(tag);
+  node.className = className;
+  Object.assign(node.style, style);
+  return node;
+}
+
+function buildScale(track) {
+  track.append(
+    make("div", "offhours left", { left: 0, width: `${pct(WORK_START * 60)}%` }),
+    make("div", "offhours right", { left: `${pct(WORK_END * 60)}%`, right: 0 }),
+    make("div", "scale-line"),
+  );
+  for (let min = HOUR_START * 60; min <= HOUR_END * 60; min += 30) {
+    track.append(make("div", "grid" + (min % 60 ? " half" : ""), { left: pct(min) + "%" }));
+  }
+  for (let min = HOUR_START * 60; min <= HOUR_END * 60; min += 15) {
+    const off = min < WORK_START * 60 || min > WORK_END * 60;
+    const kind = min % 60 === 0 ? "h" : min % 30 === 0 ? "m30" : "m15";
+    track.append(make("div", `tick ${kind}${off ? " is-off" : ""}`, { left: pct(min) + "%" }));
+    if (min % 60 === 0) {
+      const h = min / 60;
+      const offCls = off ? " is-off" : "";
+      const lbl = make("div", "hour-label" + offCls, { left: pct(min) + "%" });
+      lbl.textContent = ((h + 11) % 12) + 1;
+      track.append(lbl);
+      if (h === VIEW_FIRST_HOUR || h === 12) {
+        const ap = make("div", "ampm" + offCls, { left: pct(min) + "%" });
+        ap.textContent = h < 12 ? "AM" : "PM";
+        track.append(ap);
+      }
+    }
+  }
+}
+
+const GLASS_HEIGHT = 46;
+const LENS_PAD = 14;
+
+// tint/milk: body color and white body; core: saturated middle; edgeTint: colored thick rim; milky/frost: scattering;
+// refract/bezel: lens strength and width; chroma: per-channel split; rim: specular rim light;
+// depth/wall: visible slab thickness; nicks/scratches/pits: weathering; divider/pips: domino markings.
+const DOMINO = {
+  tint: .1, milk: 0, core: .12, edgeTint: .15, milky: .22, frost: .25, refract: 22, bezel: 8, blur: 1.2, sat: 1.25,
+  chroma: 2, rim: .8, cast: .16, depth: 7, wall: .13, nicks: [1, 3], scratches: 6, pits: 14, divider: true, pips: false,
+};
+const A = { ...DOMINO };
+const C = { ...DOMINO, tint: .38, core: .35, edgeTint: .3, milky: .12, frost: .18, refract: 24, blur: 1, sat: 1.5, rim: .85, wall: .18, scratches: 4, pits: 10 };
+// Light weathering shared by the deep-color variants.
+const LIGHT_WEAR = { milky: .06, frost: .08, scratches: 2, pits: 4, nicks: [0, 1], blur: .6 };
+const DEEP = { ...C, ...LIGHT_WEAR, palette: "deep", tint: .62, core: .5, edgeTint: .35, rim: .95, refract: 26, dim: .78, wall: .3 };
+// Transmissive: almost no paint on top, color comes from absorption, so lines and the needle stay visible through it.
+const CLEAR_DEEP = {
+  ...DEEP, tint: .06, core: .08, edgeTint: .2, milky: 0, frost: 0, scratches: 2, pits: 3,
+  blur: .3, dim: 1, sat: 1.15, absorb: 1.3, gain: 1.15, wall: .45, rim: 1, cast: .2, caustic: 0,
+};
+// Cross of 8 (painted deep) and 13 (transmissive): half the paint, plus absorption and a little dimming.
+const BLEND = {
+  ...CLEAR_DEEP, tint: .38, core: .32, edgeTint: .28, dim: .86, absorb: 1.3, gain: 1.1, wall: .42,
+  milky: .03, frost: .04, blur: .45, rim: .97,
+};
+// 21 without the bottom edge band, with tighter corners, a chamfered bevel and a contact shadow for depth.
+const SHARP = {
+  ...BLEND, tint: .24, core: .2, dim: .92, absorb: 1.3, depth: 0,
+  corner: 4, bezel: 5, refract: 20, rimBlur: .8, bevel: 2.2, outline: .55, contact: .35, cast: .24, nicks: [0, 0], divider: false,
+};
+const GLASS_STYLES = {
+  weathered:  { ...A, label: "A · Weathered" },
+  blend:      { ...BLEND, label: "8 × 13" },
+  blendDeep:  { ...BLEND, label: "8 × 13, leaning 8", tint: .52, core: .44, dim: .78, wall: .4 },
+  blendClear: { ...BLEND, label: "8 × 13, leaning 13", tint: .24, core: .2, dim: .92, absorb: 1.3, wall: .44 },
+  sharp:       { ...SHARP, label: "21, sharp 3D · white letters" },
+  sharpFrost:  { ...SHARP, label: "21, sharp 3D · frosted letters", ink: "frost" },
+  sharpDark:   { ...SHARP, label: "21, sharp 3D · dark glass-colored letters", ink: "dark" },
+  sharpPale:   { ...SHARP, label: "21, sharp 3D · pale tinted letters", ink: "pale" },
+  sharpGold:   { ...SHARP, label: "21, sharp 3D · gold letters", ink: "gold" },
+  sharpCarved: { ...SHARP, label: "21, sharp 3D · carved letters", ink: "carved" },
+  engraved:      { ...SHARP, label: "Between dark and carved", ink: "engraved", inkStrength: "65%" },
+  engravedDarkPrev: { ...SHARP, label: "29 · as picked", ink: "engraved", inkStrength: "82%" },
+  // What 29 looked like in the scaled preview frames, where Chrome dropped the SVG lens filter: no absorption or refraction.
+  engravedLight29: { ...SHARP, label: "29 · as seen in the preview", ink: "engraved", inkStrength: "82%", lens: false },
+  engravedDark:  { ...SHARP, label: "29 · more transparent", ink: "engraved", inkStrength: "82%",
+    tint: .1, core: .08, edgeTint: .16, absorb: .85, gain: 1.08, dim: .97, sat: 1.1 },
+  engravedClearest: { ...SHARP, label: "29 · most transparent", ink: "engraved", inkStrength: "82%",
+    tint: .04, core: .03, edgeTint: .1, absorb: .55, gain: 1.04, dim: 1, sat: 1.05 },
+  engravedLight: { ...SHARP, label: "Between, leaning carved", ink: "engraved", inkStrength: "48%" },
+  deeper:     { ...DEEP, label: "8 · Deeper still (reference)", tint: .75, core: .6, dim: .65, wall: .38 },
+  clearDeep:  { ...CLEAR_DEEP, label: "Clear, deep color" },
+  clearDarker:{ ...CLEAR_DEEP, label: "Clear, darker", absorb: 1.8, gain: 1.1 },
+  clearDarkest:{ ...CLEAR_DEEP, label: "Clear, darkest", absorb: 2.4, gain: 1.15, edgeTint: .3 },
+  clearJewel: { ...CLEAR_DEEP, label: "Clear jewel tones", palette: "jewel", absorb: 1.6, gain: 1.2, sat: 1.3 },
+  clearJewelThick: { ...CLEAR_DEEP, label: "Clear jewel, thick slab", palette: "jewel", absorb: 2, gain: 1.2, sat: 1.3, depth: 11, wall: .55, refract: 32, bezel: 11, chroma: 3 },
+  clearEdge:  { ...CLEAR_DEEP, label: "Clear center, dark thick edges", absorb: 1.5, edgeTint: .85, bezel: 11, wall: .6 },
+};
+const glassStyle = GLASS_STYLES[params.get("glass")] || GLASS_STYLES.engravedLight29;
+
+const PALETTES = {};
+const PALETTE = {
+  external: [{ base: "#5fa3c4", core: "#1f6f98", ink: "#123a52" }, { base: "#7a98d0", core: "#2f56a8", ink: "#16295a" }],
+  team:     [{ base: "#7fc79a", core: "#2a8a55", ink: "#123d24" }, { base: "#9dd8bf", core: "#3a9a78", ink: "#143f30" }, { base: "#5fae5a", core: "#2a7a26", ink: "#123510" }],
+  personal: [{ base: "#c48a48", core: "#8a5016", ink: "#40250a" }, { base: "#a8775a", core: "#6a3a22", ink: "#3a2014" }],
+  overflow: [{ base: "#dfe7e3", core: "#8fa89e", ink: "#33443e" }],
+};
+PALETTES.default = PALETTE;
+PALETTES.deep = {
+  external: [{ base: "#2f6fb0", core: "#123f80", ink: "#eef3ff", light: true }, { base: "#3a86a8", core: "#145a7a", ink: "#eaf7ff", light: true }],
+  team:     [{ base: "#2f8a4a", core: "#145a28", ink: "#eefff2", light: true }, { base: "#4a9a3a", core: "#22621a", ink: "#f2ffe9", light: true }],
+  personal: [{ base: "#9a5a22", core: "#5e2e0c", ink: "#fff4e6", light: true }, { base: "#8a3a22", core: "#56180c", ink: "#ffeee8", light: true }],
+  overflow: PALETTE.overflow,
+};
+PALETTES.jewel = {
+  external: [{ base: "#1f4fb8", core: "#0c2a78", ink: "#eaf0ff", light: true }, { base: "#1d6f8f", core: "#0a3e56", ink: "#e6f6ff", light: true }],
+  team:     [{ base: "#1f8a4a", core: "#0a5226", ink: "#e8fff0", light: true }, { base: "#3f7f2a", core: "#1e4a10", ink: "#f0ffe6", light: true }],
+  personal: [{ base: "#b8680f", core: "#6e3a04", ink: "#fff3e2", light: true }, { base: "#8a2f1a", core: "#4e1208", ink: "#ffece6", light: true }],
+  overflow: PALETTE.overflow,
+};
+
+const hash = str => [...str].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7);
+
+function roundedRectSegments(w, h, radii) {
+  const [tl, tr, br, bl] = radii.map(r => Math.min(r, w / 2, h / 2));
+  const line = (x0, y0, x1, y1, nx, ny) => ({
+    len: Math.hypot(x1 - x0, y1 - y0),
+    at: u => ({ x: x0 + (x1 - x0) * u, y: y0 + (y1 - y0) * u, nx, ny }),
+  });
+  const arc = (cx, cy, r, a0) => ({
+    len: r * Math.PI / 2,
+    at: u => {
+      const a = a0 + u * Math.PI / 2;
+      return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), nx: Math.cos(a), ny: Math.sin(a) };
+    },
+  });
+  return [
+    line(tl, 0, w - tr, 0, 0, -1), arc(w - tr, tr, tr, -Math.PI / 2),
+    line(w, tr, w, h - br, 1, 0),  arc(w - br, h - br, br, 0),
+    line(w - br, h, bl, h, 0, 1),  arc(bl, h - bl, bl, Math.PI / 2),
+    line(0, h - bl, 0, tl, -1, 0), arc(tl, tl, tl, Math.PI),
+  ];
+}
+
+function samplePerimeter(segments, n) {
+  const total = segments.reduce((sum, seg) => sum + seg.len, 0);
+  return Array.from({ length: n }, (_, i) => {
+    let d = (i / n) * total;
+    const seg = segments.find(sg => (d -= sg.len) <= 0) || segments[segments.length - 1];
+    const u = seg.len ? 1 + d / seg.len : 0;
+    return { ...seg.at(Math.max(0, Math.min(1, u))), t: i / n };
+  });
+}
+
+const fx = v => v.toFixed(1);
+
+function catmullRomPath(pts, ox = 0, oy = 0, closed = true) {
+  const n = pts.length;
+  const p = i => closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))];
+  const count = closed ? n : n - 1;
+  const curves = Array.from({ length: count }, (_, i) => {
+    const [p0, p1, p2, p3] = [p(i - 1), p(i), p(i + 1), p(i + 2)];
+    const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
+    const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+    return `C${fx(c1.x + ox)},${fx(c1.y + oy)} ${fx(c2.x + ox)},${fx(c2.y + oy)} ${fx(p2.x + ox)},${fx(p2.y + oy)}`;
+  });
+  return `M${fx(pts[0].x + ox)},${fx(pts[0].y + oy)} ${curves.join(" ")}${closed ? " Z" : ""}`;
+}
+
+// Crisp domino slab; worn corners are small smooth inward nicks rather than a wobbly outline.
+function dominoOutline(w, h, rnd, [minNicks, maxNicks], corner = 9) {
+  const r = Math.min(corner, w / 2 - 1, h / 2 - 1);
+  const count = minNicks + Math.floor(rnd() * (maxNicks - minNicks + 1));
+  const nicks = Array.from({ length: count }, () => ({ t: rnd(), a: 1 + rnd() * 2.4, s: 0.006 + rnd() * 0.012 }));
+  const n = Math.max(60, Math.min(400, Math.round((2 * (w + h)) / 2.5)));
+  return samplePerimeter(roundedRectSegments(w, h, [r, r, r, r]), n).map(pt => {
+    const inset = 0.5 + nicks.reduce((acc, k) => {
+      const dt = Math.min(Math.abs(pt.t - k.t), 1 - Math.abs(pt.t - k.t));
+      return acc + k.a * Math.exp(-(dt * dt) / (2 * k.s * k.s));
+    }, 0);
+    return { x: pt.x - pt.nx * inset, y: pt.y - pt.ny * inset, t: pt.t };
+  });
+}
+
+const PIP_LAYOUTS = {
+  1: [[.5, .5]],
+  2: [[.25, .25], [.75, .75]],
+  3: [[.25, .25], [.5, .5], [.75, .75]],
+  4: [[.25, .25], [.75, .25], [.25, .75], [.75, .75]],
+  5: [[.25, .25], [.75, .25], [.5, .5], [.25, .75], [.75, .75]],
+  6: [[.25, .2], [.25, .5], [.25, .8], [.75, .2], [.75, .5], [.75, .8]],
+};
+
+function pipsSvg(minutes, w, fh) {
+  const count = Math.max(1, Math.min(6, Math.round(minutes / 15)));
+  const side = Math.min(w * 0.7, fh * 0.4);
+  const ox = (w - side) / 2, oy = fh * 0.54;
+  const r = Math.max(1.8, Math.min(4.5, side * 0.09));
+  return PIP_LAYOUTS[count].map(([u, v]) => {
+    const x = ox + u * side, y = oy + v * side;
+    return `<circle cx="${fx(x)}" cy="${fx(y)}" r="${fx(r)}" fill="#fff" fill-opacity=".5"/>
+      <circle cx="${fx(x)}" cy="${fx(y - .6)}" r="${fx(r)}" fill="none" stroke="#000" stroke-opacity=".22" stroke-width=".8"/>
+      <circle cx="${fx(x)}" cy="${fx(y + .6)}" r="${fx(r)}" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".6"/>`;
+  }).join("");
+}
+
+function weatheringSvg(w, fh, rnd, st) {
+  const scratches = Array.from({ length: st.scratches }, () => {
+    const x = rnd() * w, y = rnd() * fh, len = 6 + rnd() * 26, a = rnd() * Math.PI;
+    const bend = (rnd() - 0.5) * 6;
+    const x2 = x + Math.cos(a) * len, y2 = y + Math.sin(a) * len;
+    return `<path d="M${fx(x)},${fx(y)} Q${fx((x + x2) / 2 + bend)},${fx((y + y2) / 2 - bend)} ${fx(x2)},${fx(y2)}" stroke="#fff" stroke-width="${fx(.4 + rnd() * .5)}" stroke-opacity="${fx(.12 + rnd() * .22)}" fill="none"/>`;
+  });
+  const pits = Array.from({ length: st.pits }, () => {
+    const edgeBias = rnd() < 0.6;
+    const x = edgeBias ? (rnd() < .5 ? rnd() * 12 : w - rnd() * 12) : rnd() * w;
+    const y = rnd() * fh;
+    return `<circle cx="${fx(x)}" cy="${fx(y)}" r="${fx(.5 + rnd() * 1.1)}" fill="#fff" fill-opacity="${fx(.25 + rnd() * .35)}"/>`;
+  });
+  return scratches.join("") + pits.join("");
+}
+
+function shapeField(d, W, H, blurPx) {
+  const mask = Object.assign(document.createElement("canvas"), { width: W, height: H });
+  const mctx = mask.getContext("2d");
+  mctx.fillStyle = "#fff";
+  mctx.fill(new Path2D(d));
+  const blurred = Object.assign(document.createElement("canvas"), { width: W, height: H });
+  const bctx = blurred.getContext("2d", { willReadFrequently: true });
+  bctx.filter = `blur(${blurPx}px)`;
+  bctx.drawImage(mask, 0, 0);
+  const src = bctx.getImageData(0, 0, W, H).data;
+  const v = (x, y) => src[(Math.max(0, Math.min(H - 1, y)) * W + Math.max(0, Math.min(W - 1, x))) * 4 + 3];
+  const grads = Array.from({ length: W * H }, (_, i) => {
+    const x = i % W, y = (i / W) | 0;
+    return [v(x + 1, y) - v(x - 1, y), v(x, y + 1) - v(x, y - 1)];
+  });
+  const max = grads.reduce((m, [gx, gy]) => Math.max(m, Math.hypot(gx, gy)), 1);
+  return { grads, max, ctx: bctx, canvas: blurred };
+}
+
+const toDataUrl = (field, W, H, pixel) => {
+  const out = field.ctx.createImageData(W, H);
+  field.grads.forEach((g, i) => out.data.set(pixel(g, field.max), i * 4));
+  field.ctx.putImageData(out, 0, 0);
+  return field.canvas.toDataURL();
+};
+
+// Convex lens: the gradient of a blurred shape mask points inward across the bezel and is ~0 in the flat middle.
+const displacementMap = (d, W, H, bezel) =>
+  toDataUrl(shapeField(d, W, H, bezel), W, H, ([gx, gy], max) => [128 + (gx / max) * 127, 128 + (gy / max) * 127, 128, 255]);
+
+// Rim light brightest where the edge faces the light (top-left) or its reflection (bottom-right).
+const LIGHT = { x: -0.6, y: -0.8 };
+const rimMap = (d, W, H, blurPx = 1.6) =>
+  toDataUrl(shapeField(d, W, H, blurPx), W, H, ([gx, gy], max) => {
+    const mag = Math.hypot(gx, gy);
+    const facing = mag ? Math.abs((-gx * LIGHT.x - gy * LIGHT.y) / mag) : 0;
+    const a = Math.pow(mag / max, 1.3) * (0.18 + 0.82 * Math.pow(facing, 2.2));
+    return [255, 255, 255, Math.round(a * 255)];
+  });
+
+// Colored glass filters light rather than painting over it: multiply what's behind by the glass's transmittance.
+function absorptionMatrix(hex, absorb, gain) {
+  const [r, g, b] = [1, 3, 5].map(i => Math.pow(parseInt(hex.slice(i, i + 2), 16) / 255, absorb) * gain);
+  return `${fx3(r)} 0 0 0 0  0 ${fx3(g)} 0 0 0  0 0 ${fx3(b)} 0 0  0 0 0 1 0`;
+}
+const fx3 = v => v.toFixed(3);
+
+let glassUid = 0;
+
+function glassBodySvg(id, d, rim, w, h, c, st, extras) {
+  const fh = h - st.depth;
+  const wall = Array.from({ length: st.depth }, (_, i) =>
+    `<path d="${d}" transform="translate(0 ${i + 1})" fill="${c.core}" fill-opacity="${st.wall}"/>`).join("");
+  return `
+    <defs>
+      <clipPath id="${id}-clip"><path d="${d}"/></clipPath>
+      <mask id="${id}-wallmask" maskUnits="userSpaceOnUse" x="-40" y="-40" width="${w + 80}" height="${h + 80}"><rect x="-40" y="-40" width="${w + 80}" height="${h + 80}" fill="#fff"/><path d="${d}" fill="#000"/></mask>
+      <radialGradient id="${id}-core" cx=".5" cy=".55" r=".62">
+        <stop offset="0" stop-color="${c.core}" stop-opacity="1"/>
+        <stop offset=".7" stop-color="${c.core}" stop-opacity=".35"/>
+        <stop offset="1" stop-color="${c.core}" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="${id}-bevel" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${w}" y2="${h}">
+        <stop offset="0" stop-color="${st.bevelColor ?? "#fff"}" stop-opacity="${.85 * (st.bevelLight ?? 1)}"/>
+        <stop offset=".3" stop-color="${st.bevelColor ?? "#fff"}" stop-opacity="${.35 * (st.bevelLight ?? 1)}"/>
+        <stop offset=".55" stop-color="#fff" stop-opacity="0"/>
+        <stop offset=".75" stop-color="#000" stop-opacity=".18"/>
+        <stop offset="1" stop-color="#000" stop-opacity=".45"/>
+      </linearGradient>
+      <linearGradient id="${id}-glowL" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#ffc47e" stop-opacity=".42"/>
+        <stop offset=".18" stop-color="#ffb862" stop-opacity=".08"/>
+        <stop offset=".4" stop-color="#ffb862" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="${id}-glowR" x1="1" y1="0" x2="0" y2="0">
+        <stop offset="0" stop-color="#ffc47e" stop-opacity=".42"/>
+        <stop offset=".18" stop-color="#ffb862" stop-opacity=".08"/>
+        <stop offset=".4" stop-color="#ffb862" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="${id}-glowT" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffd29a" stop-opacity=".32"/>
+        <stop offset=".22" stop-color="#ffc47e" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="${id}-sheen" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fff" stop-opacity=".22"/>
+        <stop offset=".35" stop-color="#fff" stop-opacity="0"/>
+        <stop offset="1" stop-color="#fff" stop-opacity=".06"/>
+      </linearGradient>
+    </defs>
+    <g mask="url(#${id}-wallmask)">
+      ${st.contact ? `<path d="${d}" transform="translate(1.5 3)" fill="#000" opacity="${st.contact}" filter="url(#b2)"/>` : ""}
+      <g class="cast">
+      <path d="${d}" fill="#000" opacity="${st.cast}" filter="url(#b6)"/>
+      <path d="${d}" fill="${c.core}" opacity="${st.cast * 1.2}" filter="url(#b4)"/>
+      ${(st.caustic ?? .3) ? `<ellipse cx="${w * 0.5}" cy="${h * 0.55}" rx="${w * 0.24}" ry="${h * 0.18}" fill="#fff" opacity="${st.caustic ?? .3}" filter="url(#b6)"/>` : ""}
+    </g></g>
+    ${st.depth ? `<g mask="url(#${id}-wallmask)">${wall}
+      <path d="${d}" transform="translate(0 ${st.depth})" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width=".8"/></g>` : ""}
+    ${st.milk ? `<path d="${d}" fill="#f4f5f1" fill-opacity="${st.milk}"/>` : ""}
+    ${extras.glow ? `<path class="halo-l" d="${d}" transform="translate(-3 -1)" fill="#ffb862" filter="url(#b4)"/>
+      <path class="halo-r" d="${d}" transform="translate(3 -1)" fill="#ffb862" filter="url(#b4)"/>` : ""}
+    <path d="${d}" fill="${c.base}" fill-opacity="${st.tint}"/>
+    <g clip-path="url(#${id}-clip)">
+      ${st.core ? `<rect width="${w}" height="${h}" fill="url(#${id}-core)" opacity="${st.core}"/>` : ""}
+      ${st.edgeTint ? `<path d="${d}" fill="none" stroke="${c.core}" stroke-width="${st.bezel * 1.4}" opacity="${st.edgeTint}" filter="url(#b4)"/>` : ""}
+      ${st.milky ? `<path d="${d}" fill="none" stroke="#fff" stroke-width="16" opacity="${st.milky}" filter="url(#b6)"/>` : ""}
+      ${st.frost ? `<rect width="${w}" height="${h}" filter="url(#frost)" opacity="${st.frost}"/>` : ""}
+      <rect width="${w}" height="${h}" fill="url(#${id}-sheen)"/>
+      ${extras.weathering}
+      ${st.divider ? `<path d="M10,${fx(fh * .5)} H${fx(w - 10)}" stroke="#000" stroke-opacity=".16" stroke-width="1"/>
+        <path d="M10,${fx(fh * .5 + 1)} H${fx(w - 10)}" stroke="#fff" stroke-opacity=".55" stroke-width="1"/>` : ""}
+      ${extras.pips}
+      ${extras.glow ? `<rect class="glow-l" width="${w}" height="${h}" fill="url(#${id}-glowL)"/>
+        <rect class="glow-r" width="${w}" height="${h}" fill="url(#${id}-glowR)"/>
+        <rect class="glow-t" width="${w}" height="${h}" fill="url(#${id}-glowT)"/>` : ""}
+      ${st.bevel ? `<path d="${d}" fill="none" stroke="url(#${id}-bevel)" stroke-width="${st.bevel * 2}"/>` : ""}
+      <image href="${rim}" x="${-LENS_PAD}" y="${-LENS_PAD}" width="${w + LENS_PAD * 2}" height="${fh + LENS_PAD * 2}" opacity="${st.rim}" preserveAspectRatio="none"/>
+    </g>
+    ${st.outline ? `<path d="${d}" fill="none" stroke="${c.core}" stroke-opacity="${st.outline}" stroke-width=".8"/>` : ""}`;
+}
+
+// Lights off: glass picks up a little more body color and loses most of its white rim and sheen.
+const DARK_GLASS = { tint: .34, core: .26, rim: .2, cast: .22, contact: .6, sat: 1.2, dim: .9, bevelLight: .4, bevelColor: "#ffd9a8", outline: .35 };
+const LAMPS = [0.125, 0.375, 0.625, 0.875];
+const LAMP_REACH = 0.12;
+
+// One calendar instance per faceplate, so the light and dark versions run side by side.
+function mountCalendar(root, theme) {
+  const $ = name => root.querySelector(`.js-${name}`);
+  const style = theme === "dark" ? { ...glassStyle, ...DARK_GLASS } : glassStyle;
+  let viewDay = startOfDay(now());
+  let sweeping = false;
+  let tagEl, needleEl, capEl, flagEl;
+  function showTag(target, m) {
+    const trackRect = $("track").getBoundingClientRect();
+    const r = target.getBoundingClientRect();
+    tagEl.innerHTML = `<b>${m.title}</b><br>${fmt(m.s)} – ${fmt(m.e)} · ${dur(m.e - m.s)}` +
+      (m.who ? `<br><span class="muted">${m.who}</span>` : "") +
+      (m.items ? m.items.map(x => `<br>${fmt(x.s)} ${x.title}`).join("") : "");
+    const dialRect = $("dial").getBoundingClientRect();
+    const visibleLeft = dialRect.left - trackRect.left;
+    const visibleRight = visibleLeft + dialRect.width;
+    tagEl.style.left = Math.max(visibleLeft, Math.min(r.left - trackRect.left, visibleRight - 260)) + "px";
+    const below = r.bottom - trackRect.top + 8;
+    tagEl.style.top = (below + 84 > trackRect.height ? r.top - trackRect.top - 84 : below) + "px";
+    tagEl.classList.add("show");
+  }
+  const hideTag = () => tagEl.classList.remove("show");
+  function addLensFilter(id, d, W, H, st, c) {
+    const ns = "http://www.w3.org/2000/svg";
+    const filter = document.createElementNS(ns, "filter");
+    filter.id = id;
+    Object.entries({
+      x: 0, y: 0, width: W, height: H,
+      filterUnits: "userSpaceOnUse", primitiveUnits: "userSpaceOnUse",
+      "color-interpolation-filters": "sRGB",
+    }).forEach(([k, val]) => filter.setAttribute(k, val));
+    const disp = (scale, result) =>
+      `<feDisplacementMap in="SourceGraphic" in2="map" scale="${scale}" xChannelSelector="R" yChannelSelector="G" result="${result}"/>`;
+    const only = (input, row, result) =>
+      `<feColorMatrix in="${input}" values="${row}  0 0 0 1 0" result="${result}"/>`;
+    filter.innerHTML = `
+      <feImage href="${displacementMap(d, W, H, st.bezel)}" x="0" y="0" width="${W}" height="${H}" result="map" preserveAspectRatio="none"/>
+      ${st.chroma
+        ? `${disp(st.refract + st.chroma, "dr")}${disp(st.refract, "dg")}${disp(st.refract - st.chroma, "db")}
+           ${only("dr", "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0", "r")}
+           ${only("dg", "0 0 0 0 0  0 1 0 0 0  0 0 0 0 0", "g")}
+           ${only("db", "0 0 0 0 0  0 0 0 0 0  0 0 1 0 0", "b")}
+           <feComposite in="r" in2="g" operator="arithmetic" k2="1" k3="1" result="rg"/>
+           <feComposite in="rg" in2="b" operator="arithmetic" k2="1" k3="1" result="refracted"/>`
+        : disp(st.refract, "refracted")}
+      ${st.absorb ? `<feColorMatrix in="refracted" values="${absorptionMatrix(c.base, st.absorb, st.gain ?? 1)}"/>` : ""}`;
+    $("lensDefs").append(filter);
+  }
+  function glassPiece(m, isToday, widthPx) {
+    const st = style;
+    const narrow = m.e - m.s < 30;
+    const rnd = seeded(Math.abs(hash(m.title + m.s)) + 1);
+    const tints = PALETTES[st.palette || "default"][m.type];
+    const c = tints[Math.floor(rnd() * tints.length)];
+    const w = Math.max(18, widthPx), h = GLASS_HEIGHT;
+    const fh = h - st.depth;
+    const pts = dominoOutline(w, fh, rnd, st.nicks, st.corner);
+    const d = catmullRomPath(pts);
+    const id = `sg${glassUid++}`;
+
+    const node = make("button",
+      `glass ${m.type}${narrow ? " narrow" : ""}${st.pips ? " with-pips" : ""}${st.ink ? ` ink-${st.ink}` : ""}${isToday && m.e <= nowMin() ? " past" : ""}`,
+      {
+        left: pct(m.s) + "%",
+        width: w + "px",
+        top: GLASS_TOP + "px",
+        zIndex: 10 + m.lane,
+      });
+    node.style.setProperty("--ink-glass", c.ink);
+    node.style.setProperty("--core", c.core);
+    node.style.setProperty("--base", c.base);
+    if (st.inkStrength) node.style.setProperty("--ink-strength", st.inkStrength);
+    node.style.setProperty("--etch-shadow", c.light
+      ? "0 -1px 0 rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.18)"
+      : "0 1px 0 rgba(255,255,255,.55), 0 0 6px rgba(255,255,255,.5)");
+    node.dataset.end = m.e;
+    node.setAttribute("aria-label", `${m.title}, ${fmt(m.s)} to ${fmt(m.e)}`);
+
+    // The lens is larger than the piece so refraction and blur can pull in content from just outside its edges.
+    const W = Math.ceil(w + LENS_PAD * 2), H = Math.ceil(fh + LENS_PAD * 2);
+    const lensPath = catmullRomPath(pts, LENS_PAD, LENS_PAD);
+    if (st.lens !== false) addLensFilter(`${id}-lens`, lensPath, W, H, st, c);
+    const lens = make("span", "lens", {
+      left: -LENS_PAD + "px", top: -LENS_PAD + "px", width: W + "px", height: H + "px",
+      clipPath: `path("${lensPath}")`,
+    });
+    const extra = `${st.blur ? ` blur(${st.blur}px)` : ""} saturate(${st.sat}) brightness(${st.dim ?? 1.04})`;
+    lens.style.setProperty("backdrop-filter", st.lens === false ? extra.trim() : `url(#${id}-lens)${extra}`);
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", w);
+    svg.setAttribute("height", h);
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.innerHTML = glassBodySvg(id, d, rimMap(lensPath, W, H, st.rimBlur), w, h, c, st, {
+      weathering: weatheringSvg(w, fh, rnd, st),
+      pips: st.pips && m.type !== "overflow" ? pipsSvg(m.e - m.s, w, fh) : "",
+      glow: theme === "dark",
+    });
+
+    const content = make("span", "content", { height: fh + "px" });
+    content.innerHTML = narrow
+      ? `<span class="etch title">${m.title[0]}</span>`
+      : `<span class="etch title">${m.title}</span>`;
+    node.append(lens, svg, content);
+
+    node.addEventListener("mouseenter", () => showTag(node, m));
+    node.addEventListener("focus", () => showTag(node, m));
+    node.addEventListener("mouseleave", hideTag);
+    node.addEventListener("blur", hideTag);
+    return node;
+  }
+
+  function overflowChip(group) {
+    const m = {
+      title: `${group.length} more`, type: "overflow", lane: MAX_LANES, items: group,
+      s: Math.min(...group.map(x => x.s)), e: Math.max(...group.map(x => x.e)),
+    };
+    const node = glassPiece(m, false, 40);
+    node.querySelector(".content").innerHTML = `<span class="etch title">+${group.length}</span>`;
+    return node;
+  }
+  function render() {
+    const today = now();
+    const isToday = sameDay(viewDay, today);
+    const track = $("track");
+    track.innerHTML = "";
+    $("lensDefs").innerHTML = "";
+    root.querySelectorAll(".js-dial > .dial-msg").forEach(el => el.remove());
+    track.style.width = SPAN * pxPerMin() + "px";
+    applyPan();
+    buildScale(track);
+
+    // Lives on the strip, anchored to the right end of the working-hours view, so it pans with the day.
+    const inscription = make("div", "inscription", { left: pct(HOME_VIEW_MIN + VIEW_MIN) + "%" });
+    inscription.textContent = viewDay
+      .toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+      .replace(",", "");
+    track.append(inscription);
+
+    needleEl = make("div", "needle");
+    flagEl = make("span", "now-flag");
+    needleEl.append(flagEl);
+    capEl = make("div", "needle-cap");
+    tagEl = make("div", "tag");
+
+    const placed = assignLanes(meetingsFor(viewDay, today));
+    const hidden = placed.filter(m => m.lane >= MAX_LANES);
+
+    if (isToday) track.append(needleEl, capEl);
+    placed.filter(m => m.lane < MAX_LANES)
+      .forEach(m => track.append(glassPiece(m, isToday, (m.e - m.s) * pxPerMin() - 3)));
+    if (hidden.length) track.append(overflowChip(hidden));
+    if (!placed.length) {
+      const msg = make("div", "dial-msg");
+      msg.textContent = "Clear signal — no meetings";
+      $("dial").append(msg);
+    }
+    track.append(tagEl);
+
+    if (theme === "dark") lightPieces();
+    tick();
+  }
+
+  function tick() {
+    const isToday = sameDay(viewDay, now());
+    const m = nowMin();
+    if (!isToday) return;
+
+    if (!sweeping) {
+      const p = Math.max(0, Math.min(100, pct(m))) + "%";
+      needleEl.style.left = p;
+      capEl.style.left = p;
+    }
+    flagEl.textContent = fmt(Math.floor(m));
+    placeFlag();
+
+    root.querySelectorAll(".glass:not(.overflow)").forEach(g =>
+      g.classList.toggle("past", Number(g.dataset.end) <= m));
+  }
+
+  function sweepIn() {
+    sweeping = true;
+    const dial = $("dial");
+    dial.classList.add("sweeping");
+    const glasses = [...root.querySelectorAll(".glass")];
+    glasses.forEach(g => (g.style.opacity = 0));
+    const msg = make("div", "dial-msg");
+    msg.textContent = "Tuning in…";
+    $("dial").append(msg);
+    const target = Math.max(0, Math.min(100, pct(nowMin())));
+    const t0 = performance.now();
+    const D = 1400;
+    const step = t => {
+      const k = Math.min(1, (t - t0) / D);
+      const ease = 1 - Math.pow(1 - k, 3);
+      const wobble = Math.sin(k * Math.PI * 3) * (1 - k) * 8;
+      const p = Math.max(0, target * ease + wobble) + "%";
+      needleEl.style.left = p;
+      capEl.style.left = p;
+      if (k < 1) return requestAnimationFrame(step);
+      sweeping = false;
+      dial.classList.remove("sweeping");
+      msg.remove();
+      glasses.forEach((g, i) => setTimeout(() => (g.style.opacity = ""), i * 70));
+    };
+    requestAnimationFrame(step);
+  }
+
+  const pxPerMin = () => $("dial").clientWidth / VIEW_MIN;
+  const clampView = min => Math.max(0, Math.min(SPAN - VIEW_MIN, min));
+  const HOME_VIEW_MIN = VIEW_FIRST_HOUR * 60 - VIEW_PAD_MIN;
+  let viewStartMin = HOME_VIEW_MIN;
+  const applyPan = () => {
+    $("track").style.transform = `translateX(${-viewStartMin * pxPerMin()}px)`;
+    if (flagEl) placeFlag();
+    if (theme === "dark") lightPieces();
+  };
+  // Flip the flag to the needle's left when it would run off the right edge of the window.
+  const placeFlag = () => {
+    const x = (nowMin() - viewStartMin) * pxPerMin();
+    flagEl.classList.toggle("flip", x > $("dial").clientWidth - 48);
+  };
+  // Lamps sit behind the scale at fixed spots in the window, so the glow shifts as the day is dragged under them.
+  const lightPieces = () => {
+    const dialRect = $("dial").getBoundingClientRect();
+    root.querySelectorAll(".glass").forEach(g => {
+      const r = g.getBoundingClientRect();
+      const cx = (r.left + r.width / 2 - dialRect.left) / dialRect.width;
+      const lit = LAMPS.map(x => ({ x, k: Math.exp(-(((cx - x) / LAMP_REACH) ** 2)) }));
+      const fromRight = lit.reduce((acc, l) => acc + (cx < l.x ? l.k : 0), 0);
+      const fromLeft = lit.reduce((acc, l) => acc + (cx >= l.x ? l.k : 0), 0);
+      const top = Math.max(...lit.map(l => l.k));
+      g.style.setProperty("--glow-l", Math.min(1, fromLeft).toFixed(3));
+      g.style.setProperty("--glow-r", Math.min(1, fromRight).toFixed(3));
+      g.style.setProperty("--glow-t", top.toFixed(3));
+    });
+  };
+
+  let drag = null;
+  let snapFrame = null;
+  const dialEl = $("dial");
+
+  // Dragging is only a peek: on release the dial eases back to the working-hours view.
+  const snapHome = () => {
+    const from = viewStartMin, t0 = performance.now(), D = 420;
+    const step = t => {
+      const k = Math.min(1, (t - t0) / D);
+      viewStartMin = from + (HOME_VIEW_MIN - from) * (1 - Math.pow(1 - k, 3));
+      applyPan();
+      snapFrame = k < 1 ? requestAnimationFrame(step) : null;
+    };
+    snapFrame = requestAnimationFrame(step);
+  };
+
+  dialEl.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    if (snapFrame) cancelAnimationFrame(snapFrame);
+    snapFrame = null;
+    drag = { x: e.clientX, start: viewStartMin, id: e.pointerId, moved: false };
+  });
+  dialEl.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved && Math.abs(dx) < 4) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      dialEl.setPointerCapture(drag.id);
+      dialEl.classList.add("dragging");
+      hideTag();
+    }
+    viewStartMin = clampView(drag.start - dx / pxPerMin());
+    applyPan();
+  });
+  const endDrag = () => {
+    if (drag?.moved) {
+      // Swallow the click that follows a drag so releasing over a domino doesn't activate it.
+      const swallow = e => e.stopPropagation();
+      dialEl.addEventListener("click", swallow, { capture: true });
+      setTimeout(() => dialEl.removeEventListener("click", swallow, { capture: true }), 0);
+      snapHome();
+    }
+    dialEl.classList.remove("dragging");
+    drag = null;
+  };
+  dialEl.addEventListener("pointerup", endDrag);
+  dialEl.addEventListener("pointercancel", endDrag);
+
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(render, 150);
+  });
+
+  render();
+  if (params.get("sweep") !== "0") sweepIn();
+  setInterval(tick, 1000);
+}
+
+const template = document.getElementById("calendarTemplate");
+["light", "dark"].forEach(theme => {
+  const root = template.content.firstElementChild.cloneNode(true);
+  root.classList.add(`theme-${theme}`);
+  root.setAttribute("aria-label", theme === "dark" ? "Today's calendar, dark" : "Today's calendar");
+  document.getElementById("stack").append(root);
+  mountCalendar(root, theme);
+});
+</script>
+</body>
+</html>
