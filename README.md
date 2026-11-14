@@ -112,7 +112,6 @@ Built and checked in current Chrome. It uses only standard web platform features
 ## Develop
 
 ```sh
-npm install
 npm run dev         # demo with hot reload
 npm test            # unit tests
 npm run typecheck
